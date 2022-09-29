@@ -97,7 +97,7 @@ func TestProcessPacket_IgnoreNonEchoReplies(t *testing.T) {
 	}
 
 	err = pinger.processPacket(&pkt)
-	AssertNoError(t, err)
+	AssertTrue(t, err == notEchoPacket)
 	AssertTrue(t, shouldBe0 == 0)
 }
 
@@ -140,7 +140,7 @@ func TestProcessPacket_IDMismatch(t *testing.T) {
 	}
 
 	err = pinger.processPacket(&pkt)
-	AssertNoError(t, err)
+	AssertTrue(t, err == mismatchedEchoPacketId)
 	AssertTrue(t, shouldBe0 == 0)
 }
 
@@ -220,7 +220,7 @@ func TestProcessPacket_LargePacket(t *testing.T) {
 	}
 
 	err = pinger.processPacket(&pkt)
-	AssertNoError(t, err)
+	AssertTrue(t, err == duplicateEchoPacket)
 }
 
 func TestProcessPacket_PacketTooSmall(t *testing.T) {
@@ -628,7 +628,7 @@ func TestProcessPacket_IgnoresDuplicateSequence(t *testing.T) {
 	AssertNoError(t, err)
 	// receive a duplicate
 	err = pinger.processPacket(&pkt)
-	AssertNoError(t, err)
+	AssertTrue(t, err == duplicateEchoPacket)
 
 	AssertTrue(t, shouldBe0 == 1)
 	AssertTrue(t, dups == 1)
