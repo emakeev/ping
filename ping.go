@@ -485,10 +485,10 @@ func (p *Pinger) runLoop(
 		case r := <-recvCh:
 			err = p.processPacket(r)
 			if err != nil {
-				switch err {
-				case notEchoPacket, mismatchedEchoPacketId, duplicateEchoPacket:
-				default:
+				if nce, nonCritical := err.(*NonCriticalError); !nonCritical {
 					logger.Errorf("processing received packet: %v", err)
+				} else {
+					logger.Debugf("%v for address: %s", nce, p.ipaddr)
 				}
 				continue
 			}
@@ -657,10 +657,22 @@ func (p *Pinger) getCurrentTrackerUUID() uuid.UUID {
 	return p.trackerUUIDs[len(p.trackerUUIDs)-1]
 }
 
+// NonCriticalError is a class of recoverable/non-critical errors
+type NonCriticalError struct {
+	string
+}
+
+func (e *NonCriticalError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	return e.string
+}
+
 var (
-	notEchoPacket          = errors.New("not an echo packet")
-	mismatchedEchoPacketId = errors.New("mismatched echo packet ID")
-	duplicateEchoPacket    = errors.New("duplicate echo packet ID")
+	notEchoPacket          = &NonCriticalError{"not an echo packet"}
+	mismatchedEchoPacketId = &NonCriticalError{"mismatched echo packet ID"}
+	duplicateEchoPacket    = &NonCriticalError{"duplicate echo packet ID"}
 )
 
 func (p *Pinger) processPacket(recv *packet) error {

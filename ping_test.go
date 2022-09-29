@@ -763,3 +763,91 @@ func TestRunOK(t *testing.T) {
 	AssertTrue(t, stats.MinRtt >= 10*time.Millisecond)
 	AssertTrue(t, stats.MinRtt <= 12*time.Millisecond)
 }
+
+type testPacketConnNoDelay struct {
+	testPacketConn
+	writeDone int32
+	buf       []byte
+	dst       net.Addr
+}
+
+func (c *testPacketConnNoDelay) WriteTo(b []byte, dst net.Addr) (int, error) {
+	c.buf = make([]byte, len(b))
+	c.dst = dst
+	n := copy(c.buf, b)
+	atomic.StoreInt32(&c.writeDone, 1)
+	return n, nil
+}
+
+func (c *testPacketConnNoDelay) ReadFrom(b []byte) (n int, ttl int, src net.Addr, err error) {
+	if atomic.LoadInt32(&c.writeDone) == 0 {
+		time.Sleep(1 * time.Millisecond)
+		return 0, 0, nil, nil
+	}
+	atomic.StoreInt32(&c.writeDone, 0)
+	msg, err := icmp.ParseMessage(ipv4.ICMPTypeEcho.Protocol(), c.buf)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	msg.Type = ipv4.ICMPTypeEchoReply
+	buf, err := msg.Marshal(nil)
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	n = copy(b, buf)
+	time.Sleep(1 * time.Millisecond)
+	atomic.StoreInt32(&c.writeDone, 0)
+	return n, 64, c.dst, nil
+}
+
+func TestFlexibleInterval(t *testing.T) {
+	// with flexible interval
+	pinger := New("10.20.30.40")
+	pinger.Count = 3
+	pinger.FlexibleInterval = true
+	pinger.Interval = 10 * time.Millisecond
+	err := pinger.Resolve()
+	AssertNoError(t, err)
+
+	conn := new(testPacketConnNoDelay)
+
+	start := time.Now()
+	err = pinger.run(conn)
+	runDuration := time.Now().Sub(start)
+	AssertTrue(t, err == nil)
+
+	stats := pinger.Statistics()
+	AssertTrue(t, stats != nil)
+	if stats == nil {
+		t.FailNow()
+	}
+	AssertTrue(t, stats.PacketsSent == 3)
+	AssertTrue(t, stats.PacketsRecv == 3)
+	AssertTrue(t, stats.MinRtt > 0)
+	AssertTrue(t, runDuration < 20*time.Millisecond)
+
+	// without flexible interval
+	pinger = New("10.21.33.44")
+	pinger.Count = 3
+	pinger.Interval = 10 * time.Millisecond
+	err = pinger.Resolve()
+	AssertNoError(t, err)
+
+	conn = new(testPacketConnNoDelay)
+
+	start = time.Now()
+	err = pinger.run(conn)
+	runDuration = time.Now().Sub(start)
+
+	AssertTrue(t, err == nil)
+
+	stats = pinger.Statistics()
+	AssertTrue(t, stats != nil)
+	if stats == nil {
+		t.FailNow()
+	}
+	AssertTrue(t, stats.PacketsSent == 3)
+	AssertTrue(t, stats.PacketsRecv == 3)
+	AssertTrue(t, runDuration >= 20*time.Millisecond)
+	AssertTrue(t, runDuration < 40*time.Millisecond)
+}
