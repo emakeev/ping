@@ -488,8 +488,7 @@ func (p *Pinger) runLoop(
 				switch err {
 				case notEchoPacket, mismatchedEchoPacketId, duplicateEchoPacket:
 				default:
-					err = fmt.Errorf("processing received packet: %v", err)
-					logger.Errorf(err.Error())
+					logger.Errorf("processing received packet: %v", err)
 				}
 				continue
 			}
@@ -498,8 +497,7 @@ func (p *Pinger) runLoop(
 				if p.Count <= 0 || p.PacketsSent < p.Count {
 					err = p.sendICMP(conn)
 					if err != nil {
-						err = fmt.Errorf("sending packet: %v", err)
-						logger.Errorf(err.Error())
+						logger.Errorf("sending packet: %v", err)
 					}
 				}
 			}
@@ -510,8 +508,7 @@ func (p *Pinger) runLoop(
 			}
 			err = p.sendICMP(conn)
 			if err != nil {
-				err = fmt.Errorf("sending packet: %v", err)
-				logger.Errorf(err.Error())
+				logger.Errorf("sending packet: %v", err)
 			}
 		}
 		if p.Count > 0 && p.PacketsRecv >= p.Count {
